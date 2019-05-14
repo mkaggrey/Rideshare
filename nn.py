@@ -1,47 +1,78 @@
 import torch
+import numpy as np
 import torch.nn as nn
 
-class Network(nn.Module):
-    def __init__(self):
+
+class Actor(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
         """Network constructor"""
-        super(Network, self).__init__()
+        super(Actor, self).__init__()
         #Initialize model here
-        self.model = None
+
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.output_dim = output_dim
+
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.nl1 = nn.Tanh()
+
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.nl2 = nn.ReLU()
+
+        self.fc3 = nn.Linear(hidden_dim, output_dim)
+        self.nl3 = nn.LeakyReLU()
 
 
-        self.loss_fn = None
-        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.01)
 
-
-    def forward(self, input):
+    def forward(self, x):
         """Network forward pass"""
-        return None
+        if type(x) is np.ndarray:
+            x = torch.FloatTensor(x)
 
 
-    def train(self,state, requests, optimal):
-        """
-        Main training loop for the learning agent that learns the pricing vector function
+        y = self.fc1(x)
+        y = self.nl1(y)
 
-        state : torch
-            the current state, which is some vector of length n integers where each ith element of the vector
-            represents the number of drivers at that location i.
-        requests: torch
-            the incoming requests, should be some nxn by grid of integers with the number of requests going from
-            location i to j
+        y = self.fc2(y)
+        y = self.nl2(y)
 
-        optimal: torch
-            some nxn grid of real numbers indicating the optimal pricing for a trip from location
-            i to location j
+        y = self.fc3(y)
+        y = self.nl3(y)
 
-        Doesn't return anything, just trains the function approximator
-        """
+        return y.view(-1,self.input_dim, self.input_dim)
 
-        pricing = self.forward(state)
 
-        self.optimizer.zero_grad()  # zero the gradient buffers
-        loss = self.loss_fn(pricing, optimal)
-        loss.backwards() #backwards pass
-        self.optimizer.step() #update network
+class Critic(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden, output_dim):
+        """Network constructor"""
+        super(Critic, self).__init__()
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.output_dim = output_dim
+        self.cat_dim = hidden + action_dim
+
+
+        self.fc1 = nn.Linear(state_dim, hidden)
+        self.nl1 = nn.Tanh()
+
+        self.fc2 = nn.Linear(self.cat_dim, hidden)
+        self.nl2 = nn.ReLU()
+
+        self.fc3 = nn.Linear(hidden, output_dim)
+
+    def forward(self, state, action):
+
+        state_half = self.fc1(state)
+        state_half = self.nl2(state_half)
+        action_half = action.view(-1,self.action_dim)
+
+
+        combined = torch.cat([state_half,action_half], dim=1)
+
+        y = self.fc2(combined)
+        y = self.nl2(y)
+
+        return self.fc3(y)
 
 
 
