@@ -2,13 +2,63 @@ import memory
 import numpy as np
 import torch
 from torch.autograd import Variable
-
-import lp
+import gym_dynamic_set_packing
+import gym
 
 BUFFER_SIZE = 100
 MAX_CARS = 3
 MAX_REQUEST = 3
 
+class EnvKidney():
+    def __init__(self, env_name, actor):
+        self.buffer = memory.Replay(buffer_size=BUFFER_SIZE)
+        self.actor = actor
+        self.actor.eval()
+        self.underlying_env = gym.make(env_name)
+
+    def populate(self):
+        self.actor.eval()
+        for i in range(BUFFER_SIZE):
+
+            # state = np.random.randint(0,MAX_CARS,self.locations)
+            state = self.underlying_env.reset_const(10)
+
+            state_tensor = torch.Tensor(state)
+            action_tensor = self.actor(state_tensor)
+            action = action_tensor[0,:].detach().numpy()
+
+            # reward = np.sum(np.multiply(pricing, matched))
+            next_state, reward, _, _ = self.underlying_env.step(action)
+
+            self.buffer.add(s=state, a=action, s2=next_state, r=reward)
+
+    def add_memory(self, state, action, reward, next_state):
+            #self.buffer.add(s=state[i], a=action[i], r=reward[i], s2=next_state[i])
+        if type(action) is torch.Tensor:
+            action = action[0,:].detach().numpy()
+
+        self.buffer.add(s=state, a=action, r=reward, s2=next_state)
+
+    def observe(self,batch_size=10):
+        states, actions, rewards, next_states = self.buffer.sample_batch(batch_size=batch_size)
+
+        states = torch.Tensor(states)
+        next_states = torch.Tensor(next_states)
+        actions = torch.Tensor(actions)
+        rewards = torch.Tensor(rewards)
+
+        return states, actions, rewards, next_states
+
+    def state(self):
+        return self.underlying_env.state
+
+    def step(self, action):
+        action = action[0,:].detach().numpy()
+        next_state, reward, _, _ = self.underlying_env.step(action)
+        return next_state, reward
+
+    def update(self, next):
+        self.underlying_env = next
 
 class Env():
 
@@ -114,6 +164,3 @@ class Env():
 
     def update(self, next):
         self.curr_state = next
-
-
-

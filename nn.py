@@ -39,7 +39,7 @@ class Actor(nn.Module):
         y = self.fc3(y)
         y = self.nl3(y)
 
-        return y.view(-1,self.input_dim, self.input_dim)
+        return y.view(-1,self.input_dim)
 
 
 class Critic(nn.Module):
