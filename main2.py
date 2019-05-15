@@ -9,21 +9,63 @@ import matplotlib.pyplot as plt
 import gym_dynamic_set_packing
 
 
-MAX_EPISODES = 1
-STEPS = 10
+MAX_EPISODES = 30
+STEPS = 100
 BATCH_SIZE = 1
 
 
 NUM_TYPES = 16
-ACTOR_HIDDEN = 200
-CRTIC_HIDDEN = 1000
+ACTOR_HIDDEN = 128
+CRTIC_HIDDEN = 128
 CRITIC_OUTPUT = 1
 EXPLORATION = .5
 ACTOR_OUTPUT = NUM_TYPES
-DISCOUNT = .9
+DISCOUNT = .999
 TAU = 1e-3
 CRITIC_LR = 1e-5
 ACTOR_LR = 1e-4
+
+class GreedyActor():
+    def eval(self):
+        return
+    def __call__(self, state):
+        return torch.ones(1,NUM_TYPES)
+
+    def train(self):
+        return
+
+def greedy(args):
+    #Randomly initialize actor and critic networks
+    #Copy the weights to make the targets
+
+    actor = GreedyActor()
+    env = environment.EnvKidney('DynamicSetPacking-weightedtest-v0', actor= actor)
+    env.populate() #Initialize buffer
+
+
+    prices_l = []
+    critic_l = []
+    actual_rewards = []
+    for e in range(MAX_EPISODES):
+        env.reset()
+        for i in range(STEPS):
+
+            state = env.state()
+            pricing = actor(state)
+
+            next_state, reward = env.step(pricing)
+
+            env.add_memory(state=state, action=pricing, reward=reward, next_state=next_state)
+
+            states, actions, rewards, nexts = env.observe(batch_size=100)
+            actual_rewards.append(reward)
+
+
+
+        env.update(next_state)
+    return actual_rewards
+
+
 def main(args):
 
     #Randomly initialize actor and critic networks
@@ -47,7 +89,10 @@ def main(args):
 
     prices_l = []
     critic_l = []
+    actual_rewards = []
+
     for e in range(MAX_EPISODES):
+        env.reset()
         for i in range(STEPS):
             if actor.training != True:
                 actor.train()
@@ -67,6 +112,7 @@ def main(args):
 
             states, actions, rewards, nexts = env.observe(batch_size=100)
             pricing_target = actor_target(states) #+ 10*torch.rand(size=pricing.size())
+            actual_rewards.append(reward)
 
 
             critic_optim.zero_grad()
@@ -98,15 +144,22 @@ def main(args):
 
 
         env.update(next_state)
-        plt.plot(critic_l)
-        plt.show()
 
+    return actual_rewards
 
 
 def soft_update(target, source, tau):
     for target_param, param in zip(target.parameters(), source.parameters()):
         target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
 
+def running_mean(x, N):
+    # from stackoverflow
+    cumsum = np.cumsum(np.insert(x, 0, 0))
+    return (cumsum[N:] - cumsum[:-N]) / float(N)
 
 if __name__ == '__main__':
-    main(sys.argv)
+    rewards_learned = main(sys.argv)
+    rewards_greedy = greedy(sys.argv)
+    plt.plot(running_mean(rewards_learned, 10))
+    plt.plot(running_mean(rewards_greedy, 10))
+    plt.show()

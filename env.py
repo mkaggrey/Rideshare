@@ -56,9 +56,11 @@ class EnvKidney():
         action = action[0,:].detach().numpy()
         next_state, reward, _, _ = self.underlying_env.step(action)
         return next_state, reward
+    def reset(self):
+        self.underlying_env.reset()
 
     def update(self, next):
-        self.underlying_env = next
+        self.underlying_env.state = next
 
 class Env():
 
